@@ -69,14 +69,14 @@ abstract class MangaDex(override val lang: String, val dexLang: String) :
                 addQueryParameter("contentRating[]", "safe")
             }
             if (preferences.getBoolean(
-                    MDConstants.getContentRatingEroticaPrefKey(dexLang),
+                    MDConstants.getContentRatingSuggestivePrefKey(dexLang),
                     false
                 )
             ) {
                 addQueryParameter("contentRating[]", "suggestive")
             }
             if (preferences.getBoolean(
-                    MDConstants.getContentRatingSuggestivePrefKey(dexLang),
+                    MDConstants.getContentRatingEroticaPrefKey(dexLang),
                     false
                 )
             ) {
@@ -351,7 +351,8 @@ abstract class MangaDex(override val lang: String, val dexLang: String) :
             val now = Date().time
 
             return chapterListResults.map { helper.createChapter(it) }
-                .filter { it.date_upload <= now && "MangaPlus" != it.scanlator }
+                .filter { it.date_upload <= now && "MangaPlus" != it.scanlator
+                    && "Comikey" != it.scanlator}
         } catch (e: Exception) {
             Log.e("MangaDex", "error parsing chapter list", e)
             throw(e)
@@ -426,7 +427,7 @@ abstract class MangaDex(override val lang: String, val dexLang: String) :
                 preferences.edit().putString(MDConstants.getCoverQualityPreferenceKey(dexLang), entry).commit()
             }
         }
-        
+
         val dataSaverPref = SwitchPreferenceCompat(screen.context).apply {
             key = MDConstants.getDataSaverPreferenceKey(dexLang)
             title = "Data saver"

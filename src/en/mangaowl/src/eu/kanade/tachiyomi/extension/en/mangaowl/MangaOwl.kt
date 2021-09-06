@@ -3,13 +3,16 @@ package eu.kanade.tachiyomi.extension.en.mangaowl
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import eu.kanade.tachiyomi.util.asJsoup
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.ParseException
@@ -68,21 +71,41 @@ class MangaOwl : ParsedHttpSource() {
 
     // Search
 
+    // This is necessary because the HTML response does not contain pagination links
+    override fun searchMangaParse(response: Response): MangasPage {
+        val document = response.asJsoup()
+
+        val mangas = document.select(searchMangaSelector()).map { element ->
+            searchMangaFromElement(element)
+        }
+        // Max manga in 1 page is 36
+        val hasNextPage = document.select(searchMangaSelector()).size == 36
+
+        return MangasPage(mangas, hasNextPage)
+    }
+
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = "$baseUrl/search/$page".toHttpUrlOrNull()!!.newBuilder()
         url.addQueryParameter("search", query)
 
         filters.forEach { filter ->
             when (filter) {
-                is SearchFilter -> url.addQueryParameter("search_field", filter.toUriPart())
+                is SearchFieldFilter -> {
+                    val fields = filter.state
+                        .filter { it.state }
+                        .joinToString("") { it.uriPart }
+                    url.addQueryParameter("search_field", fields)
+                }
                 is SortFilter -> url.addQueryParameter("sort", filter.toUriPart())
                 is StatusFilter -> url.addQueryParameter("completed", filter.toUriPart())
                 is GenreFilter -> {
                     val genres = filter.state
                         .filter { it.state }
-                        .joinToString(".") { it.uriPart }
+                        .joinToString(",") { it.uriPart }
                     url.addQueryParameter("genres", genres)
                 }
+                is MinChapterFilter -> url.addQueryParameter("chapter_from", filter.state)
+                is MaxChapterFilter -> url.addQueryParameter("chapter_to", filter.state)
             }
         }
         return GET(url.toString(), headers)
@@ -92,7 +115,7 @@ class MangaOwl : ParsedHttpSource() {
 
     override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
 
-    override fun searchMangaNextPageSelector() = "div.blog-pagenat-wthree li a.page-link.next"
+    override fun searchMangaNextPageSelector() = throw UnsupportedOperationException("Not used")
 
     // Manga summary page
 
@@ -163,26 +186,20 @@ class MangaOwl : ParsedHttpSource() {
     // Filters
 
     override fun getFilterList() = FilterList(
-        SearchFilter(),
+        SearchFieldFilter(getSearchFields()),
         SortFilter(),
         StatusFilter(),
-        GenreFilter(getGenreList())
+        GenreFilter(getGenreList()),
+        Filter.Separator(),
+        Filter.Header("Only works with text search"),
+        MinChapterFilter(),
+        MaxChapterFilter()
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :
         Filter.Select<String>(displayName, vals.map { it.first }.toTypedArray()) {
         fun toUriPart() = vals[state].second
     }
-
-    private class SearchFilter : UriPartFilter(
-        "Search in",
-        arrayOf(
-            Pair("Manga title", "1"),
-            Pair("Authors", "2"),
-            Pair("Description", "3"),
-            Pair("All", "123")
-        )
-    )
 
     private class SortFilter : UriPartFilter(
         "Sort by",
@@ -206,6 +223,7 @@ class MangaOwl : ParsedHttpSource() {
 
     private class Genre(name: String, val uriPart: String) : Filter.CheckBox(name)
     private class GenreFilter(genres: List<Genre>) : Filter.Group<Genre>("Genres", genres)
+
     private fun getGenreList() = listOf(
         Genre("4-koma", "89"),
         Genre("Action", "1"),
@@ -315,4 +333,16 @@ class MangaOwl : ParsedHttpSource() {
         Genre("Yuri", "54"),
         Genre("Zombies", "108")
     )
+
+    private class SearchField(name: String, state: Boolean, val uriPart: String) : Filter.CheckBox(name, state)
+    private class SearchFieldFilter(fields: List<SearchField>) : Filter.Group<SearchField>("Search in", fields)
+
+    private fun getSearchFields() = listOf(
+        SearchField("Manga title", true, "1"),
+        SearchField("Authors", true, "2"),
+        SearchField("Description", false, "3")
+    )
+
+    private class MinChapterFilter : Filter.Text("Minimum Chapters")
+    private class MaxChapterFilter : Filter.Text("Maximum Chapters")
 }

@@ -5,7 +5,9 @@ import eu.kanade.tachiyomi.multisrc.madara.Madara
 
 @Nsfw
 class ManyToonMe : Madara("ManyToon.me", "https://manytoon.me", "en") {
-    
+
+    override val useNewChapterEndpoint: Boolean = true
+
     override fun getGenreList() = listOf(
         Genre("Action", "action"),
         Genre("Adult", "adult"),
@@ -55,5 +57,4 @@ class ManyToonMe : Madara("ManyToon.me", "https://manytoon.me", "en") {
         Genre("Yaoi", "yaoi"),
         Genre("Yuri", "yuri"),
     )
-
 }
