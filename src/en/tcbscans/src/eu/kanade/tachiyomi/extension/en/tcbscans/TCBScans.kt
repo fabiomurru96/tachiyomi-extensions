@@ -74,10 +74,9 @@ class TCBScans : ParsedHttpSource() {
         var mangas = document.select(popularMangaSelector()).map { popularMangaFromElement(it) }
         val query = response.request.headers["query"]
         mangas = if (query != null) {
-            val predicate = { it: SManga -> it.title.contains(query, true) }
-            mangas.filter(predicate)
+            mangas.filter { it.title.contains(query, true) }
         } else {
-            listOf()
+            emptyList()
         }
 
         return MangasPage(mangas, false)
