@@ -29,6 +29,7 @@ class TCBScans : ParsedHttpSource() {
     override val client: OkHttpClient = network.cloudflareClient
     companion object {
         private const val MIGRATE_MESSAGE = "Migrate from TCB Scans to TCB Scans"
+        private val TITLE_REGEX = "[0-9]+$".toRegex()
     }
     // popular
     override fun popularMangaRequest(page: Int): Request {
@@ -134,8 +135,7 @@ class TCBScans : ParsedHttpSource() {
         // Chapters retro compatibility
         var name = element.select(".text-lg.font-bold:not(.flex)").text()
         val description = element.select(".text-gray-500").text()
-        val titleRegex = "[0-9]+$".toRegex()
-        val matchResult = titleRegex.find(name)
+        val matchResult = TITLE_REGEX.find(name)
         if (matchResult != null)
             name = "Chapter ${matchResult.value}"
         chapter.name = "$name: $description"
