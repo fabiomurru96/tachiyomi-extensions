@@ -10,7 +10,6 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
-import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -164,18 +163,9 @@ class TCBScans : ParsedHttpSource() {
             }
     }
 
-    // pages
     override fun pageListParse(document: Document): List<Page> {
-        val pages = mutableListOf<Page>()
-        var i = 0
-        document.select(".flex.flex-col.items-center.justify-center picture img").forEach { element ->
-            val url = element.attr("src")
-            i++
-            if (url.isNotEmpty()) {
-                pages.add(Page(i, "", url))
-            }
-        }
-        return pages
+        return document.select(".flex.flex-col.items-center.justify-center picture img")
+            .mapIndexed { i, el -> Page(i, "", el.attr("src")) }
     }
 
     override fun imageUrlParse(document: Document) = ""
