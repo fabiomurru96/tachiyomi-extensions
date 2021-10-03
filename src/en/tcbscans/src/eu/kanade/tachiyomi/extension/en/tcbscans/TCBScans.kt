@@ -88,7 +88,9 @@ class TCBScans : ParsedHttpSource() {
     override fun searchMangaSelector(): String = popularMangaSelector()
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val headers = Headers.headersOf("query", query)
+        val headers = headersBuilder()
+            .add("query", query)
+            .build()
         return GET("$baseUrl/projects", headers)
     }
 
