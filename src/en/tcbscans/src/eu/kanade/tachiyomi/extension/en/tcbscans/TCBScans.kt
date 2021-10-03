@@ -31,13 +31,13 @@ class TCBScans : ParsedHttpSource() {
         return GET("$baseUrl/projects")
     }
 
-    override fun popularMangaSelector() = "#latestProjects .elementor-widget-image-box:not(.elementor-widget-spacer)"
+    override fun popularMangaSelector() = ".bg-card.border.border-border.rounded.p-3.mb-3"
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = element.select(".attachment-thumbnail").attr("src")
-        manga.setUrlWithoutDomain(element.select(".elementor-image-box-title a").attr("href"))
-        manga.title = element.select(".elementor-image-box-title a").text()
+        manga.thumbnail_url = element.select(".w-24.h-24.object-cover.rounded-lg").attr("src")
+        manga.setUrlWithoutDomain(element.select("a.mb-3.text-white.text-lg.font-bold").attr("href"))
+        manga.title = element.select("a.mb-3.text-white.text-lg.font-bold").text()
         return manga
     }
 
@@ -66,16 +66,16 @@ class TCBScans : ParsedHttpSource() {
 
     // manga details
     override fun mangaDetailsParse(document: Document) = SManga.create().apply {
-        val descElement = document.select(".elementor-widget-text-editor").parents().first()
+        val descElement = document.select(".order-1.bg-card.border.border-border.rounded.py-3")
 
-        thumbnail_url = descElement.select("img").attr("src")
-        title = descElement.select(".elementor-heading-title").text()
-        description = descElement.select(".elementor-widget-text-editor div").text()
+        thumbnail_url = descElement.select(".flex.items-center.justify-center img").attr("src")
+        title = descElement.select(".my-3.font-bold.text-3xl").text()
+        description = descElement.select(".leading-6.my-3").text()
     }
 
     // chapters
     override fun chapterListSelector() =
-        ".elementor-column-gap-no .elementor-widget-image-box,.elementor-column-gap-default .elementor-widget-image-box"
+        ".block.border.border-border.bg-card.mb-3.p-3.rounded"
 
     private fun chapterWithDate(element: Element, slug: String): SChapter {
         val seriesPrefs = Injekt.get<Application>().getSharedPreferences("source_${id}_updateTime:$slug", 0)
@@ -95,18 +95,25 @@ class TCBScans : ParsedHttpSource() {
     }
 
     override fun chapterFromElement(element: Element): SChapter {
-        val urlElement = element.select("a").first()
         val chapter = SChapter.create()
 
-        chapter.setUrlWithoutDomain(urlElement.attr("href"))
-        chapter.name = element.select(".elementor-image-box-title").text() + ": " + element.select(".elementor-image-box-description").text()
+        chapter.setUrlWithoutDomain(element.attr("href"))
+
+        // Chapters retro compatibility
+        var name = element.select(".text-lg.font-bold:not(.flex)").text()
+        val description = element.select(".text-gray-500").text()
+        val titleRegex = "[0-9]+$".toRegex()
+        val matchResult = titleRegex.find(name)
+        if (matchResult != null)
+            name = "Chapter ${matchResult.value}"
+        chapter.name = "$name: $description"
 
         return chapter
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = response.asJsoup()
-        val slug = response.request.url.pathSegments[0]
+        val slug = response.request.url.pathSegments[2]
 
         return document.select(chapterListSelector()).map { chapterWithDate(it, slug) }
     }
@@ -115,7 +122,7 @@ class TCBScans : ParsedHttpSource() {
     override fun pageListParse(document: Document): List<Page> {
         val pages = mutableListOf<Page>()
         var i = 0
-        document.select(".container .img_container center img").forEach { element ->
+        document.select(".flex.flex-col.items-center.justify-center picture img").forEach { element ->
             val url = element.attr("src")
             i++
             if (url.isNotEmpty()) {
