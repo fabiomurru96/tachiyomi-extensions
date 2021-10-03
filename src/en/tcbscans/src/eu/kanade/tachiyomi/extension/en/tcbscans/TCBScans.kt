@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.extension.en.tcbscans
 
 import android.app.Application
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.asObservable
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -9,6 +10,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -25,7 +27,7 @@ class TCBScans : ParsedHttpSource() {
     override val lang = "en"
     override val supportsLatest = false
     override val client: OkHttpClient = network.cloudflareClient
-
+    val migrateMessage = "Migrate from TCB Scans to TCB Scans"
     // popular
     override fun popularMangaRequest(page: Int): Request {
         return GET("$baseUrl/projects")
@@ -43,6 +45,20 @@ class TCBScans : ParsedHttpSource() {
 
     override fun popularMangaNextPageSelector(): String? = null
 
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
+        return client.newCall(mangaDetailsRequest(manga))
+            .asObservable()
+            .doOnNext { response ->
+                if (!response.isSuccessful) {
+                    response.close()
+                    throw Exception(if (response.code == 404) migrateMessage else "HTTP error ${response.code}")
+                }
+            }
+            .map { response ->
+                mangaDetailsParse(response).apply { initialized = true }
+            }
+    }
+
     // latest
     override fun latestUpdatesRequest(page: Int): Request = throw UnsupportedOperationException()
 
@@ -52,17 +68,30 @@ class TCBScans : ParsedHttpSource() {
 
     override fun latestUpdatesNextPageSelector(): String = throw UnsupportedOperationException()
 
-    // search
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
-        Observable.just(MangasPage(emptyList(), false))
+    override fun searchMangaParse(response: Response): MangasPage {
+        val document = response.asJsoup()
 
-    override fun searchMangaFromElement(element: Element): SManga = throw Exception("Not used")
+        var mangas = document.select(popularMangaSelector()).map { popularMangaFromElement(it) }
+        val query = response.request.headers["query"]
+        mangas = if (query != null) {
+            val predicate = { it: SManga -> it.title.contains(query, true) }
+            mangas.filter(predicate)
+        } else {
+            listOf()
+        }
+
+        return MangasPage(mangas, false)
+    }
+    override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
 
     override fun searchMangaNextPageSelector(): String = throw Exception("Not used")
 
-    override fun searchMangaSelector(): String = throw Exception("Not used")
+    override fun searchMangaSelector(): String = popularMangaSelector()
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = throw Exception("Not used")
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val headers = Headers.headersOf("query", query)
+        return GET("$baseUrl/projects", headers)
+    }
 
     // manga details
     override fun mangaDetailsParse(document: Document) = SManga.create().apply {
@@ -118,6 +147,20 @@ class TCBScans : ParsedHttpSource() {
         return document.select(chapterListSelector()).map { chapterWithDate(it, slug) }
     }
 
+    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
+        return client.newCall(pageListRequest(chapter))
+            .asObservable()
+            .doOnNext { response ->
+                if (!response.isSuccessful) {
+                    response.close()
+                    throw Exception(if (response.code == 404) migrateMessage else "HTTP error ${response.code}")
+                }
+            }
+            .map { response ->
+                pageListParse(response)
+            }
+    }
+    
     // pages
     override fun pageListParse(document: Document): List<Page> {
         val pages = mutableListOf<Page>()
