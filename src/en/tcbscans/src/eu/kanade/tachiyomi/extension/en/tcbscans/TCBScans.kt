@@ -27,7 +27,9 @@ class TCBScans : ParsedHttpSource() {
     override val lang = "en"
     override val supportsLatest = false
     override val client: OkHttpClient = network.cloudflareClient
-    val migrateMessage = "Migrate from TCB Scans to TCB Scans"
+    companion object {
+        private const val MIGRATE_MESSAGE = "Migrate from TCB Scans to TCB Scans"
+    }
     // popular
     override fun popularMangaRequest(page: Int): Request {
         return GET("$baseUrl/projects")
@@ -51,7 +53,7 @@ class TCBScans : ParsedHttpSource() {
             .doOnNext { response ->
                 if (!response.isSuccessful) {
                     response.close()
-                    throw Exception(if (response.code == 404) migrateMessage else "HTTP error ${response.code}")
+                    throw Exception(if (response.code == 404) MIGRATE_MESSAGE else "HTTP error ${response.code}")
                 }
             }
             .map { response ->
@@ -154,14 +156,14 @@ class TCBScans : ParsedHttpSource() {
             .doOnNext { response ->
                 if (!response.isSuccessful) {
                     response.close()
-                    throw Exception(if (response.code == 404) migrateMessage else "HTTP error ${response.code}")
+                    throw Exception(if (response.code == 404) MIGRATE_MESSAGE else "HTTP error ${response.code}")
                 }
             }
             .map { response ->
                 pageListParse(response)
             }
     }
-    
+
     // pages
     override fun pageListParse(document: Document): List<Page> {
         val pages = mutableListOf<Page>()
